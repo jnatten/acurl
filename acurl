@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+
+"""Main for acurl"""
+
+import os
+import json
+import sys
+import time
+import subprocess
+import requests
+
+SCRIPT_FOLDER = os.path.dirname(os.path.realpath(__file__))
+CONFIG_FILE = "{}/config.json".format(SCRIPT_FOLDER)
+TOKEN_FILE = "{}/token.json".format(SCRIPT_FOLDER)
+
+def open_config() -> dict:
+    """Open config file"""
+    try:
+        with open(CONFIG_FILE, 'r') as config_file:
+            return json.load(config_file)
+    except FileNotFoundError:
+        print("No config file found, please create one...")
+        sys.exit(1)
+
+CONFIG = open_config()
+
+class TokenApiClient(): # pylint: disable=too-few-public-methods
+    """Class to keep token valid whilst making requests"""
+
+    def __init__(self):
+        self.token_file = self.__open_token_file()
+        if not self.token_file:
+            self.__get_token()
+
+    @staticmethod
+    def __open_token_file() -> dict:
+        try:
+            with open(TOKEN_FILE, 'r') as token_file:
+                return json.load(token_file)
+        except FileNotFoundError:
+            return None
+
+    def __get_token(self):
+        try:
+            url = CONFIG['authorization_url']
+            request_body = CONFIG['request_body']
+        except KeyError:
+            print("Invalid config...")
+            sys.exit(1)
+
+        token_response = requests.post(url, json=request_body)
+        if not token_response.status_code == 200:
+            print("Could not fetch token. Received status {} with body {}"
+                  .format(token_response.status_code, token_response.json()))
+            sys.exit(1)
+
+        token_body = token_response.json()
+        token_body['timestamp'] = time.time()
+
+        self.__save_token(token_body)
+
+    def __save_token(self, token_body):
+        self.token_file = token_body
+        with open(TOKEN_FILE, 'w') as token_file:
+            json.dump(self.token_file, token_file)
+
+    def __check_token_valid(self) -> bool:
+        """Checks whether a token is expired or not"""
+
+        token_ts = self.token_file.get("timestamp_fetched", time.time() - 1)
+        token_expired = token_ts + self.token_file.get(
+            CONFIG.get("expiration_field", "expires_in"), 0)
+
+        if token_expired < int(time.time()):
+            return False
+        return True
+
+    def token(self):
+        """Gets valid token or quits"""
+        try:
+            token_field = CONFIG['token_field']
+        except KeyError:
+            print("Invalid config")
+            sys.exit(1)
+
+        if self.__check_token_valid():
+            try:
+                return self.token_file[token_field]
+            except KeyError:
+                print("this is a bug")
+                sys.exit(1)
+        sys.exit(1)
+
+def main():
+    """Entry point for acurl"""
+    token_client = TokenApiClient()
+    token = token_client.token()
+    args = ' '.join(sys.argv[1:])
+    subprocess.run("curl --header 'authorization: Bearer {}' {}".format(token, args), shell=True)
+
+if __name__ == '__main__':
+    main()

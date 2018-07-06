@@ -75,24 +75,29 @@ class TokenApiClient(): # pylint: disable=too-few-public-methods
             return False
         return True
 
-    def token(self):
-        """Gets valid token or quits"""
+    def __token_from_file(self):
+        """Returns token field from stored token"""
         try:
             token_field = CONFIG['token_field']
         except KeyError:
             print("Invalid config")
             sys.exit(1)
 
+        try:
+            return self.token_file[token_field]
+        except KeyError:
+            print("this is a bug")
+            sys.exit(1)
+
+    def token(self):
+        """Gets valid token or quits"""
+
         if self.__check_token_valid():
-            try:
-                return self.token_file[token_field]
-            except KeyError:
-                print("this is a bug")
-                sys.exit(1)
+            return self.__token_from_file()
 
         self.__get_token()
         print("Invalid token, refreshing...")
-        sys.exit(1)
+        return self.__token_from_file()
 
 def main():
     """Entry point for acurl"""

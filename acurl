@@ -90,13 +90,12 @@ class TokenApiClient(): # pylint: disable=too-few-public-methods
             sys.exit(1)
 
     def token(self):
-        """Gets valid token or quits"""
+        """Gets valid token"""
 
-        if self.__check_token_valid():
-            return self.__token_from_file()
+        if not self.__check_token_valid():
+            print("Invalid token, refreshing...")
+            self.__get_token()
 
-        self.__get_token()
-        print("Invalid token, refreshing...")
         return self.__token_from_file()
 
 def main():

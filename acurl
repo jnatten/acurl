@@ -9,9 +9,9 @@ import time
 import subprocess
 import requests
 
-SCRIPT_FOLDER = os.path.dirname(os.path.realpath(__file__))
-CONFIG_FILE = "{}/config.json".format(SCRIPT_FOLDER)
-TOKEN_FILE = "{}/token.json".format(SCRIPT_FOLDER)
+CONFIG_FOLDER = "{home}/.config/acurl".format(home=os.environ["HOME"])
+CONFIG_FILE = "{}/config.json".format(CONFIG_FOLDER)
+TOKEN_FILE = "{}/token.json".format(CONFIG_FOLDER)
 
 def open_config() -> dict:
     """Open config file"""
@@ -19,7 +19,7 @@ def open_config() -> dict:
         with open(CONFIG_FILE, 'r') as config_file:
             return json.load(config_file)
     except FileNotFoundError:
-        print("No config file found, please create one...")
+        print("No config file found, please create one at {}".format(CONFIG_FILE))
         sys.exit(1)
 
 CONFIG = open_config()

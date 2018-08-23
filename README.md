@@ -2,7 +2,7 @@
 A simple authentication wrapper for cURL
 
 ## Usage
-acurl requires a ./config.json with a few fields.
+acurl requires a config at ~/.config/acurl/config.json with a few fields.
 
 Here is an example where we fetch tokens from auth0.
 Currently only json responses are supported.

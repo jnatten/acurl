@@ -9,9 +9,10 @@ import time
 import subprocess
 import requests
 
-CONFIG_FOLDER = "{home}/.config/acurl".format(home=os.environ["HOME"])
-CONFIG_FILE = "{}/config.json".format(CONFIG_FOLDER)
-TOKEN_FILE = "{}/token.json".format(CONFIG_FOLDER)
+HOME_DIR = os.path.expanduser("~")
+CONFIG_FOLDER = os.path.join(HOME_DIR, ".config", "acurl")
+CONFIG_FILE = os.path.join(CONFIG_FOLDER, "config.json")
+TOKEN_FILE = os.path.join(CONFIG_FOLDER, "token.json")
 
 def open_config() -> dict:
     """Open config file"""

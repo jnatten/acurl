@@ -14,22 +14,22 @@ CONFIG_FOLDER = os.path.join(HOME_DIR, ".config", "acurl")
 CONFIG_FILE = os.path.join(CONFIG_FOLDER, "config.json")
 TOKEN_FILE = os.path.join(CONFIG_FOLDER, "token.json")
 
-def open_config() -> dict:
+def open_config(config_name=None) -> dict:
     """Open config file"""
     try:
         with open(CONFIG_FILE, 'r') as config_file:
-            return json.load(config_file)
+            confs = json.load(config_file)
+            return {**confs.get('default', {}), **confs.get(config_name, {})}
     except FileNotFoundError:
         print("No config file found, please create one at {}".format(CONFIG_FILE))
         sys.exit(1)
 
-CONFIG = open_config()
-
 class TokenApiClient(): # pylint: disable=too-few-public-methods
     """Class to keep token valid whilst making requests"""
 
-    def __init__(self):
+    def __init__(self, config):
         self.token_file = self.__open_token_file()
+        self.config = config
         if not self.token_file:
             self.__get_token()
 
@@ -43,8 +43,8 @@ class TokenApiClient(): # pylint: disable=too-few-public-methods
 
     def __get_token(self):
         try:
-            url = CONFIG['authorization_url']
-            request_body = CONFIG['request_body']
+            url = self.config['authorization_url']
+            request_body = self.config['request_body']
         except KeyError:
             print("Invalid config...")
             sys.exit(1)
@@ -70,7 +70,7 @@ class TokenApiClient(): # pylint: disable=too-few-public-methods
 
         token_ts = self.token_file.get("timestamp", 0)
         token_expired = token_ts + self.token_file.get(
-            CONFIG.get("expiration_field", "expires_in"), 0)
+            self.config.get("expiration_field", "expires_in"), 0)
 
         if token_expired < int(time.time()):
             return False
@@ -79,7 +79,7 @@ class TokenApiClient(): # pylint: disable=too-few-public-methods
     def __token_from_file(self):
         """Returns token field from stored token"""
         try:
-            token_field = CONFIG['token_field']
+            token_field = self.config['token_field']
         except KeyError:
             print("Invalid config")
             sys.exit(1)
@@ -101,10 +101,12 @@ class TokenApiClient(): # pylint: disable=too-few-public-methods
 
 def main():
     """Entry point for acurl"""
-    token_client = TokenApiClient()
+    config = open_config()
+    token_client = TokenApiClient(config)
     token = token_client.token()
     args = ' '.join(sys.argv[1:])
-    subprocess.run("curl --header 'authorization: Bearer {}' {}".format(token, args), shell=True)
+    command = "curl --header 'authorization: Bearer {}' {}".format(token, args)
+    subprocess.run(command, shell=True)
 
 if __name__ == '__main__':
     main()

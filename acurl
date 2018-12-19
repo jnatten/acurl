@@ -18,41 +18,39 @@ def open_config(config_name=None) -> dict:
     """Open config file"""
     try:
         with open(CONFIG_FILE, 'r') as config_file:
-            confs = json.load(config_file)
-            return {**confs.get('default', {}), **confs.get(config_name, {})}
+            return json.load(config_file)
     except FileNotFoundError:
-        print("No config file found, please create one at {}".format(CONFIG_FILE))
+        print("No config file found, please create one at {}".format(CONFIG_FILE), file=sys.stderr)
         sys.exit(1)
 
 class TokenApiClient(): # pylint: disable=too-few-public-methods
     """Class to keep token valid whilst making requests"""
 
     def __init__(self, config):
-        self.token_file = self.__open_token_file()
         self.config = config
+        self.token_file = self.__open_token_file(config.get('env', 'default'))
         if not self.token_file:
             self.__get_token()
 
     @staticmethod
-    def __open_token_file() -> dict:
+    def __open_token_file(env) -> dict:
         try:
             with open(TOKEN_FILE, 'r') as token_file:
-                return json.load(token_file)
+                return json.load(token_file).get(env, {})
         except FileNotFoundError:
-            return None
+            return {}
 
     def __get_token(self):
         try:
             url = self.config['authorization_url']
             request_body = self.config['request_body']
         except KeyError:
-            print("Invalid config...")
+            print("Invalid config...", file=sys.stderr)
             sys.exit(1)
 
         token_response = requests.post(url, json=request_body)
         if not token_response.status_code == 200:
-            print("Could not fetch token. Received status {} with body {}"
-                  .format(token_response.status_code, token_response.json()))
+            print("Could not fetch token. Received status {} with body {}".format(token_response.status_code, token_response.json()), file=sys.stderr)
             sys.exit(1)
 
         token_body = token_response.json()
@@ -61,9 +59,17 @@ class TokenApiClient(): # pylint: disable=too-few-public-methods
         self.__save_token(token_body)
 
     def __save_token(self, token_body):
-        self.token_file = token_body
+        try:
+            with open(TOKEN_FILE), 'r' as token_file:
+                old = json.load(token_file)
+        except:
+            old = {}
+
+        to_save = {**old, self.config.get('env', 'default'): token_body}
+
         with open(TOKEN_FILE, 'w') as token_file:
-            json.dump(self.token_file, token_file)
+            json.dump(to_save, token_file)
+            self.token_file = to_save.get(self.config.get('env', 'default'))
 
     def __check_token_valid(self) -> bool:
         """Checks whether a token is expired or not"""
@@ -81,20 +87,23 @@ class TokenApiClient(): # pylint: disable=too-few-public-methods
         try:
             token_field = self.config['token_field']
         except KeyError:
-            print("Invalid config")
+            print("Invalid config", file=sys.stderr)
             sys.exit(1)
 
         try:
             return self.token_file[token_field]
         except KeyError:
-            print("this is a bug")
+            # TODO: En bug tryner her fordi tokenfile er {} når token.json ikke finnes
+            print("this is a bug", file=sys.stderr)
+            print(json.dumps(self.token_file, indent=2))
             sys.exit(1)
 
     def token(self):
         """Gets valid token"""
 
         if not self.__check_token_valid():
-            print("Invalid token, refreshing...")
+            # TODO: Store token separate places for separate configs
+            print("Invalid token, refreshing...", file=sys.stderr)
             self.__get_token()
 
         return self.__token_from_file()
@@ -102,10 +111,23 @@ class TokenApiClient(): # pylint: disable=too-few-public-methods
 def main():
     """Entry point for acurl"""
     config = open_config()
-    token_client = TokenApiClient(config)
+
+    try:
+        # TODO: Somehow we need to merge "request_body" in the config. (So some things in request_body will be loaded from default?)
+        first_arg = sys.argv[1]
+        override_config = config.get(first_arg, {})
+        arg_start_idx = 2 if override_config else 1
+        args = ' '.join(sys.argv[arg_start_idx:])
+
+        parsed_config = {**config.get('default', {}), **config.get(first_arg, {}), 'env': first_arg}
+    except IndexError:
+        parsed_config = {**config.get('default', {}), 'env': first_arg}
+
+    token_client = TokenApiClient(parsed_config)
     token = token_client.token()
-    args = ' '.join(sys.argv[1:])
+
     command = "curl --header 'authorization: Bearer {}' {}".format(token, args)
+
     subprocess.run(command, shell=True)
 
 if __name__ == '__main__':

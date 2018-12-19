@@ -14,6 +14,16 @@ CONFIG_FOLDER = os.path.join(HOME_DIR, ".config", "acurl")
 CONFIG_FILE = os.path.join(CONFIG_FOLDER, "config.json")
 TOKEN_FILE = os.path.join(CONFIG_FOLDER, "token.json")
 
+def deep_merge(source: dict, destination: dict):
+    for key, value in source.items():
+        if isinstance(value, dict):
+            node = destination.setdefault(key, {})
+            deep_merge(value, node)
+        else:
+            if not key in destination:
+                destination[key] = value
+    return destination
+
 def open_config(config_name=None) -> dict:
     """Open config file"""
     try:
@@ -22,6 +32,13 @@ def open_config(config_name=None) -> dict:
     except FileNotFoundError:
         print("No config file found, please create one at {}".format(CONFIG_FILE), file=sys.stderr)
         sys.exit(1)
+    except json.decoder.JSONDecodeError:
+        print("Config could not be parsed as json, see readme for configuration.", file=sys.stderr)
+        sys.exit(1)
+
+def save_config(config):
+    with open(CONFIG_FILE, 'w') as config_file:
+        json.dump(config, config_file)
 
 class TokenApiClient(): # pylint: disable=too-few-public-methods
     """Class to keep token valid whilst making requests"""
@@ -60,7 +77,7 @@ class TokenApiClient(): # pylint: disable=too-few-public-methods
 
     def __save_token(self, token_body):
         try:
-            with open(TOKEN_FILE), 'r' as token_file:
+            with open(TOKEN_FILE, 'r') as token_file:
                 old = json.load(token_file)
         except:
             old = {}
@@ -102,7 +119,6 @@ class TokenApiClient(): # pylint: disable=too-few-public-methods
         """Gets valid token"""
 
         if not self.__check_token_valid():
-            # TODO: Store token separate places for separate configs
             print("Invalid token, refreshing...", file=sys.stderr)
             self.__get_token()
 
@@ -111,17 +127,24 @@ class TokenApiClient(): # pylint: disable=too-few-public-methods
 def main():
     """Entry point for acurl"""
     config = open_config()
+    if 'token_field' in config:
+        print("You seem to be using old config format, migrating to new...", file=sys.stderr)
+        config = {'default': config}
+        save_config(config)
 
-    try:
-        # TODO: Somehow we need to merge "request_body" in the config. (So some things in request_body will be loaded from default?)
-        first_arg = sys.argv[1]
-        override_config = config.get(first_arg, {})
-        arg_start_idx = 2 if override_config else 1
-        args = ' '.join(sys.argv[arg_start_idx:])
+    first_arg = sys.argv[1]
+    override_config = config.get(first_arg, {})
+    arg_start_idx = 2 if override_config else 1
+    args = ' '.join(sys.argv[arg_start_idx:])
 
-        parsed_config = {**config.get('default', {}), **config.get(first_arg, {}), 'env': first_arg}
-    except IndexError:
-        parsed_config = {**config.get('default', {}), 'env': first_arg}
+    default_config = config.get('default', {})
+    env_config = config.get(first_arg, {})
+    if env_config:
+        merged = deep_merge(default_config, env_config)
+        parsed_config = {**merged, 'env': first_arg}
+    else:
+        parsed_config = {**default_config, 'env': 'default'}
+    
 
     token_client = TokenApiClient(parsed_config)
     token = token_client.token()

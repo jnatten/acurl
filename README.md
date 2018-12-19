@@ -7,9 +7,8 @@ If the first argument equals one of the blocks in the config file, it will not b
 - `acurl <curl args>` will use default configuration.
 - `acurl test <curl args>` will use default + test configuration.
 
-Example:
-
-`acurl test https://example.com/ -iXPOST -H 'Content-Type: application/json' -d '{"x": 10}'`
+#### Example:
+    acurl test https://example.com/ -iXPOST -H 'Content-Type: application/json' -d '{"x": 10}'
 
 ## Configuration
 
@@ -34,19 +33,24 @@ Here is an example where we fetch tokens from auth0:
 }
 ```
 
-### Multiple configurations
-Any other names than default can be used to override `default` configuration when calling `acurl`
-Ex: `acurl test https://example.com/ -XPOST -H 'Content-Type: application/json' -d '{"x": 1}'`
+### Configuration overriding
+Any other names than default can be used to override `default` configuration when calling `acurl`.
+
+#### Example: 
+    acurl test https://example.com/ -XPOST -H 'Content-Type: application/json' -d '{"x": 1}'
 
 Will use configuration from `test` block to override. 
-So it will use `test_client_id` and `test_client_secret` rather than the default of `default_client_id` and `default_client_secret`.
+
+It will use `test_client_id` and `test_client_secret` in the request body, and still keep all the other settings from the default block (Including other fields in the request body).
 
 
 ```javascript
 {
   "test": {
-    "client_id": "test_client_id",
-    "client_secret": "test_client_secret"
+    "request_body": {
+      "client_id": "test_client_id",
+      "client_secret": "test_client_secret"
+    }
   },
   "default": {
     "authorization_url": "https://example.eu.auth0.com/oauth/token",
